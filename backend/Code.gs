@@ -26,6 +26,7 @@ function doPost(e) {
     else if (action === 'list_tasks') result = { tasks: listTasks_() };
     else if (action === 'complete_task') result = completeTask_(body.task || {});
     else if (action === 'delete_task') result = deleteTask_(body.task || {});
+    else if (action === 'update_task') result = updateTask_(body.originalTitle, body.task || {});
     else result = { error: 'unknown_action' };
   } catch (err) {
     result = { error: String(err) };
@@ -82,6 +83,23 @@ function deleteTask_(task) {
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][0] === task.title) {
       sheet.deleteRow(i + 1);
+      return { ok: true };
+    }
+  }
+  return { error: 'task_not_found' };
+}
+
+// Updates a row in place (keeps CreatedAt/Status) instead of delete+re-add.
+function updateTask_(originalTitle, task) {
+  const sheet = getSheet_();
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === originalTitle) {
+      const rowNum = i + 1;
+      sheet.getRange(rowNum, 1).setValue(task.title || rows[i][0]);
+      sheet.getRange(rowNum, 2).setValue(task.date !== undefined ? task.date : rows[i][1]);
+      sheet.getRange(rowNum, 3).setValue(task.time !== undefined ? task.time : rows[i][2]);
+      sheet.getRange(rowNum, 4).setValue(task.notes !== undefined ? task.notes : rows[i][3]);
       return { ok: true };
     }
   }

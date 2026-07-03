@@ -9,6 +9,7 @@ export default function SettingsModal({ open, onClose, settings, onSave }) {
   const [voiceURI, setVoiceURI] = useState(settings.voiceURI || '')
   const [sttLang, setSttLang] = useState(settings.sttLang || 'en-IN')
   const [continuousConvo, setContinuousConvo] = useState(settings.continuousConvo || false)
+  const [remindersEnabled, setRemindersEnabled] = useState(settings.remindersEnabled ?? true)
   const [tamilVoices, setTamilVoices] = useState([])
 
   useEffect(() => {
@@ -126,12 +127,21 @@ export default function SettingsModal({ open, onClose, settings, onSave }) {
           the wake word between turns. Tap the mic to interrupt/stop anytime.
         </p>
 
+        <label style={{ ...styles.label, display: 'flex', alignItems: 'center', gap: 10, marginTop: 18 }}>
+          <input type="checkbox" checked={remindersEnabled} onChange={(e) => setRemindersEnabled(e.target.checked)} />
+          Task reminders
+        </label>
+        <p style={styles.hint}>
+          While the app is open, ARIA will notify and speak up when a task's date/time hits. Foreground only —
+          same limitation as wake word, needs a native build for background alerts.
+        </p>
+
         <div style={styles.actions}>
           <button style={styles.cancelBtn} onClick={onClose}>Cancel</button>
           <button
             style={styles.saveBtn}
             onClick={() => {
-              onSave({ apiKey, scriptUrl, wakeEnabled, wakeWord, userName, voiceURI, sttLang, continuousConvo })
+              onSave({ apiKey, scriptUrl, wakeEnabled, wakeWord, userName, voiceURI, sttLang, continuousConvo, remindersEnabled })
               onClose()
             }}
           >

@@ -5,7 +5,16 @@ import { useEffect, useRef } from 'react'
  * state: 'idle' | 'listening' | 'thinking' | 'speaking'
  * amplitude: 0..1 live audio level (mic input while listening, or synthetic pulse while speaking)
  */
-export default function JarvisOrb({ state = 'idle', amplitude = 0 }) {
+// Subtle color shift layered on top of the state color, based on ARIA's last reply mood.
+const MOOD_TINT = {
+  neutral: null,
+  happy: '#8fffb0',
+  excited: '#ff9ee0',
+  thinking: '#ffb454',
+  concerned: '#ff8a65',
+}
+
+export default function JarvisOrb({ state = 'idle', amplitude = 0, mood = 'neutral' }) {
   const canvasRef = useRef(null)
   const rafRef = useRef(null)
   const rotationRef = useRef(0)
@@ -48,7 +57,10 @@ export default function JarvisOrb({ state = 'idle', amplitude = 0 }) {
       smoothedAmpRef.current += (amplitude - smoothedAmpRef.current) * 0.18
 
       const amp = smoothedAmpRef.current
-      const color = colorFor[state] || colorFor.idle
+      // mood only tints the orb while idle/speaking — "thinking" keeps its own amber,
+      // and "listening" stays neutral cyan so it's always clear the mic is live
+      const moodTint = (state === 'idle' || state === 'speaking') ? MOOD_TINT[mood] : null
+      const color = moodTint || colorFor[state] || colorFor.idle
       const speed = state === 'thinking' ? 0.028 : state === 'listening' ? 0.012 : 0.006
       rotationRef.current += speed
 
@@ -134,7 +146,7 @@ export default function JarvisOrb({ state = 'idle', amplitude = 0 }) {
       cancelAnimationFrame(rafRef.current)
       window.removeEventListener('resize', resize)
     }
-  }, [state, amplitude])
+  }, [state, amplitude, mood])
 
   return (
     <div style={{ position: 'relative', width: '100%', aspectRatio: '1 / 1', maxWidth: 340, margin: '0 auto' }}>

@@ -3,9 +3,11 @@ import JarvisOrb from './components/JarvisOrb.jsx'
 import StatusBar from './components/StatusBar.jsx'
 import TaskPanel from './components/TaskPanel.jsx'
 import SettingsModal from './components/SettingsModal.jsx'
+import TranscriptLog from './components/TranscriptLog.jsx'
 import { useVoice } from './hooks/useVoice.js'
-import { askAria } from './services/gemini.js'
-import { addTask, listTasks, completeTask } from './services/sheets.js'
+import { useReminders } from './hooks/useReminders.js'
+import { askAriaStream } from './services/gemini.js'
+import { addTask, listTasks, completeTask, deleteTask, updateTask } from './services/sheets.js'
 
 const STATE_LABEL = {
   idle: 'Tap · Speak',
@@ -13,6 +15,9 @@ const STATE_LABEL = {
   thinking: 'Thinking...',
   speaking: 'Speaking...',
 }
+
+const HISTORY_KEY = 'aria_history'
+const TRANSCRIPT_KEY = 'aria_transcript'
 
 function loadSettings() {
   try {
@@ -22,15 +27,42 @@ function loadSettings() {
   }
 }
 
+function loadHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+
+function loadTranscript() {
+  try {
+    return JSON.parse(localStorage.getItem(TRANSCRIPT_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+
+function timeLabel() {
+  return new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+}
+
 export default function App() {
   const [settings, setSettings] = useState(loadSettings)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [tasksOpen, setTasksOpen] = useState(false)
+  const [transcriptOpen, setTranscriptOpen] = useState(false)
   const [tasks, setTasks] = useState([])
   const [tasksLoading, setTasksLoading] = useState(false)
   const [reply, setReply] = useState('')
   const [error, setError] = useState(null)
-  const historyRef = useRef([]) // running conversation memory: [{ role: 'user'|'model', text }]
+  const [mood, setMood] = useState('neutral')
+  const [transcript, setTranscript] = useState(loadTranscript)
+  const [installPrompt, setInstallPrompt] = useState(null)
+
+  // running conversation memory: [{ role: 'user'|'model', text }] — persisted so a reload
+  // (or losing/regaining signal) doesn't wipe ARIA's short-term memory of the chat
+  const historyRef = useRef(loadHistory())
   const listenOnceRef = useRef(() => {})
 
   const refreshTasks = useCallback(async () => {
@@ -46,6 +78,23 @@ export default function App() {
     }
   }, [settings.scriptUrl])
 
+  const appendTranscript = useCallback((role, text) => {
+    setTranscript((prev) => {
+      const next = [...prev, { role, text, time: timeLabel() }].slice(-200) // cap so localStorage doesn't grow unbounded
+      localStorage.setItem(TRANSCRIPT_KEY, JSON.stringify(next))
+      return next
+    })
+  }, [])
+
+  const persistHistory = useCallback((next) => {
+    historyRef.current = next
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(next))
+    } catch {
+      /* storage full or unavailable — memory still works for this session */
+    }
+  }, [])
+
   const handleFinalTranscript = useCallback(
     async (text) => {
       if (!text) return
@@ -54,21 +103,38 @@ export default function App() {
         setSettingsOpen(true)
         return
       }
+      appendTranscript('user', text)
+
+      let spokenEarly = false
+
       try {
-        const result = await askAria({
+        const result = await askAriaStream({
           apiKey: settings.apiKey,
           userText: text,
           history: historyRef.current,
           taskContext: tasks.filter((t) => t.status !== 'done').slice(0, 10),
           userName: settings.userName,
+          onRateLimited: (waitSec) => {
+            setError(`ARIA is briefly rate-limited — retrying in ${Math.ceil(waitSec)}s...`)
+          },
+          onPartialReply: async (partialText) => {
+            // start speaking as soon as we have the reply text, well before action/task/mood finish streaming
+            spokenEarly = true
+            setError(null)
+            setReply(partialText)
+            await speak(partialText, settings.voiceURI)
+          },
         })
 
         // remember this exchange so the next turn has context
-        historyRef.current = [
+        persistHistory([
           ...historyRef.current,
           { role: 'user', text },
           { role: 'model', text: JSON.stringify(result) },
-        ]
+        ])
+
+        if (result.mood) setMood(result.mood)
+        appendTranscript('aria', result.reply)
 
         if (result.action === 'add_task' && result.task?.title && settings.scriptUrl) {
           await addTask(settings.scriptUrl, result.task)
@@ -76,12 +142,19 @@ export default function App() {
         } else if (result.action === 'complete_task' && result.task?.title && settings.scriptUrl) {
           await completeTask(settings.scriptUrl, result.task.title)
           refreshTasks()
+        } else if (result.action === 'delete_task' && result.task?.title && settings.scriptUrl) {
+          await deleteTask(settings.scriptUrl, result.task.title)
+          refreshTasks()
         } else if (result.action === 'list_tasks') {
           refreshTasks()
         }
 
         setReply(result.reply)
-        await speak(result.reply, settings.voiceURI)
+
+        // only speak here if the streamed partial-reply path never fired (e.g. it fell back to non-streaming)
+        if (!spokenEarly) {
+          await speak(result.reply, settings.voiceURI)
+        }
 
         // continuous conversation: keep listening for a natural follow-up without needing another tap/wake word
         if (settings.continuousConvo) {
@@ -93,7 +166,7 @@ export default function App() {
         await speak('Sorry, something went wrong.', settings.voiceURI)
       }
     },
-    [settings, tasks, refreshTasks]
+    [settings, tasks, refreshTasks, appendTranscript, persistHistory]
   )
 
   const { state, amplitude, liveText, listenOnce, speak, supported } = useVoice({
@@ -121,15 +194,51 @@ export default function App() {
     window.speechSynthesis?.getVoices()
   }, [])
 
+  // capture the "Add to Home Screen" prompt so we can trigger it from our own button
+  // instead of relying on the browser's own (easy-to-miss) mini-infobar
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault()
+      setInstallPrompt(e)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const handleInstallClick = async () => {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    await installPrompt.userChoice
+    setInstallPrompt(null)
+  }
+
+  useReminders({
+    tasks,
+    enabled: settings.remindersEnabled ?? true,
+    onDue: async (task) => {
+      const line = `Reminder: ${task.title}${task.time ? ` at ${task.time}` : ''}.`
+      appendTranscript('aria', line)
+      if (state !== 'listening') {
+        await speak(line, settings.voiceURI)
+      }
+    },
+  })
+
   const saveSettings = (next) => {
     setSettings(next)
     localStorage.setItem('aria_settings', JSON.stringify(next))
   }
 
   const startNewConversation = () => {
-    historyRef.current = []
+    persistHistory([])
     setError(null)
+    setMood('neutral')
     setReply(settings.userName ? `Fresh start, ${settings.userName}. What's up?` : "Fresh start. What's up?")
+  }
+
+  const clearTranscript = () => {
+    setTranscript([])
+    localStorage.removeItem(TRANSCRIPT_KEY)
   }
 
   return (
@@ -138,11 +247,14 @@ export default function App() {
         online={!!settings.apiKey}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenTasks={() => setTasksOpen(true)}
+        onOpenTranscript={() => setTranscriptOpen(true)}
         onNewConversation={startNewConversation}
+        canInstall={!!installPrompt}
+        onInstall={handleInstallClick}
       />
 
       <div style={styles.main}>
-        <JarvisOrb state={state} amplitude={amplitude} />
+        <JarvisOrb state={state} amplitude={amplitude} mood={mood} />
 
         <div className="hud-label" style={styles.stateLabel}>{STATE_LABEL[state]}</div>
 
@@ -185,7 +297,24 @@ export default function App() {
           await completeTask(settings.scriptUrl, title)
           refreshTasks()
         }}
+        onDelete={async (title) => {
+          if (!settings.scriptUrl) return
+          await deleteTask(settings.scriptUrl, title)
+          refreshTasks()
+        }}
+        onEdit={async (originalTitle, task) => {
+          if (!settings.scriptUrl) return
+          await updateTask(settings.scriptUrl, originalTitle, task)
+          refreshTasks()
+        }}
         onRefresh={refreshTasks}
+      />
+
+      <TranscriptLog
+        open={transcriptOpen}
+        onClose={() => setTranscriptOpen(false)}
+        entries={transcript}
+        onClear={clearTranscript}
       />
 
       <SettingsModal

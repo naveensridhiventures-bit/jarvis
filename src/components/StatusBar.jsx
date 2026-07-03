@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-export default function StatusBar({ online, onOpenSettings, onOpenTasks, onNewConversation }) {
+export default function StatusBar({ online, onOpenSettings, onOpenTasks, onOpenTranscript, onNewConversation, canInstall, onInstall }) {
   const [now, setNow] = useState(new Date())
 
   useEffect(() => {
@@ -27,6 +27,10 @@ export default function StatusBar({ online, onOpenSettings, onOpenTasks, onNewCo
       </div>
 
       <div style={styles.right}>
+        {canInstall && (
+          <button aria-label="Install app" onClick={onInstall} style={{ ...styles.iconBtn, color: 'var(--amber)' }}>⇩</button>
+        )}
+        <button aria-label="Transcript" onClick={onOpenTranscript} style={styles.iconBtn}>≡</button>
         <button aria-label="New conversation" onClick={onNewConversation} style={styles.iconBtn}>+</button>
         <button aria-label="Tasks" onClick={onOpenTasks} style={styles.iconBtn}>☰</button>
         <button aria-label="Settings" onClick={onOpenSettings} style={styles.iconBtn}>⚙</button>
@@ -40,21 +44,21 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: '18px 20px 10px',
+    padding: '18px 14px 10px',
   },
   left: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 90 },
   dot: { width: 7, height: 7, borderRadius: '50%', boxShadow: '0 0 8px currentColor' },
   center: { textAlign: 'center' },
   time: { fontFamily: 'var(--font-display)', fontSize: 20, letterSpacing: '0.08em', color: 'var(--text-primary)' },
   date: { fontSize: 12, color: 'var(--text-dim)', marginTop: 2 },
-  right: { display: 'flex', gap: 8, minWidth: 90, justifyContent: 'flex-end' },
+  right: { display: 'flex', gap: 6, minWidth: 90, justifyContent: 'flex-end' },
   iconBtn: {
     background: 'var(--bg-panel)',
     border: '1px solid var(--line)',
     color: 'var(--cyan)',
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     borderRadius: 10,
-    fontSize: 15,
+    fontSize: 14,
   }
 }
