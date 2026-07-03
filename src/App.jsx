@@ -8,10 +8,10 @@ import { askAria } from './services/gemini.js'
 import { addTask, listTasks, completeTask } from './services/sheets.js'
 
 const STATE_LABEL = {
-  idle: 'தட்டவும் · பேசவும்',
-  listening: 'கேட்கிறேன்...',
-  thinking: 'யோசிக்கிறேன்...',
-  speaking: 'பேசுகிறேன்...',
+  idle: 'Tap · Speak',
+  listening: 'Listening...',
+  thinking: 'Thinking...',
+  speaking: 'Speaking...',
 }
 
 function loadSettings() {
@@ -28,7 +28,7 @@ export default function App() {
   const [tasksOpen, setTasksOpen] = useState(false)
   const [tasks, setTasks] = useState([])
   const [tasksLoading, setTasksLoading] = useState(false)
-  const [reply, setReply] = useState('இன்று உங்களுக்கு எப்படி உதவலாம்?')
+  const [reply, setReply] = useState('')
   const [error, setError] = useState(null)
 
   const refreshTasks = useCallback(async () => {
@@ -48,7 +48,7 @@ export default function App() {
     async (text) => {
       if (!text) return
       if (!settings.apiKey) {
-        setError('அமைப்புகளில் Gemini API Key-ஐ சேர்க்கவும்')
+        setError('Add your Gemini API Key in Settings')
         setSettingsOpen(true)
         return
       }
@@ -57,6 +57,7 @@ export default function App() {
           apiKey: settings.apiKey,
           userText: text,
           taskContext: tasks.filter((t) => t.status !== 'done').slice(0, 10),
+          userName: settings.userName,
         })
 
         if (result.action === 'add_task' && result.task?.title && settings.scriptUrl) {
@@ -70,11 +71,11 @@ export default function App() {
         }
 
         setReply(result.reply)
-        await speak(result.reply)
+        await speak(result.reply, settings.voiceURI)
       } catch (e) {
         console.error(e)
-        setError('மன்னிக்கவும், ஏதோ தவறு நடந்தது.')
-        await speak('மன்னிக்கவும், ஏதோ தவறு நடந்தது.')
+        setError('Sorry, something went wrong.')
+        await speak('Sorry, something went wrong.', settings.voiceURI)
       }
     },
     [settings, tasks, refreshTasks]
@@ -83,11 +84,17 @@ export default function App() {
   const { state, amplitude, liveText, listenOnce, speak, supported } = useVoice({
     onFinalTranscript: handleFinalTranscript,
     wakeEnabled: settings.wakeEnabled,
+    sttLang: settings.sttLang || 'en-IN',
   })
 
   useEffect(() => {
     refreshTasks()
   }, [refreshTasks])
+
+  useEffect(() => {
+    setReply(settings.userName ? `Hi ${settings.userName}, how can I help today?` : 'How can I help you today?')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     // warm up voice list (Chrome loads voices async)
@@ -124,7 +131,7 @@ export default function App() {
 
       <div style={styles.footer}>
         {!supported && (
-          <p style={styles.warnText}>இந்த உலாவி குரல் அங்கீகாரத்தை ஆதரிக்கவில்லை. Chrome for Android பயன்படுத்தவும்.</p>
+          <p style={styles.warnText}>This browser doesn't support voice recognition. Please use Chrome for Android.</p>
         )}
         <button
           style={{ ...styles.micBtn, ...(state === 'listening' ? styles.micBtnActive : {}) }}

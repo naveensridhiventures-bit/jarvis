@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
-const TAMIL_DAYS = ['ஞாயிறு', 'திங்கள்', 'செவ்வாய்', 'புதன்', 'வியாழன்', 'வெள்ளி', 'சனி']
-const TAMIL_MONTHS = ['ஜன', 'பிப்', 'மார்', 'ஏப்', 'மே', 'ஜூன்', 'ஜூலை', 'ஆக', 'செப்', 'அக்', 'நவ', 'டிச']
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export default function StatusBar({ online, onOpenSettings, onOpenTasks }) {
   const [now, setNow] = useState(new Date())
@@ -12,7 +12,7 @@ export default function StatusBar({ online, onOpenSettings, onOpenTasks }) {
   }, [])
 
   const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
-  const dateStr = `${TAMIL_DAYS[now.getDay()]}, ${now.getDate()} ${TAMIL_MONTHS[now.getMonth()]}`
+  const dateStr = `${DAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]}`
 
   return (
     <div style={styles.bar}>
@@ -23,12 +23,12 @@ export default function StatusBar({ online, onOpenSettings, onOpenTasks }) {
 
       <div style={styles.center}>
         <div style={styles.time}>{timeStr}</div>
-        <div className="tamil" style={styles.date}>{dateStr}</div>
+        <div style={styles.date}>{dateStr}</div>
       </div>
 
       <div style={styles.right}>
-        <button aria-label="பணிகள்" onClick={onOpenTasks} style={styles.iconBtn}>☰</button>
-        <button aria-label="அமைப்புகள்" onClick={onOpenSettings} style={styles.iconBtn}>⚙</button>
+        <button aria-label="Tasks" onClick={onOpenTasks} style={styles.iconBtn}>☰</button>
+        <button aria-label="Settings" onClick={onOpenSettings} style={styles.iconBtn}>⚙</button>
       </div>
     </div>
   )

@@ -1,9 +1,23 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function SettingsModal({ open, onClose, settings, onSave }) {
   const [apiKey, setApiKey] = useState(settings.apiKey || '')
   const [scriptUrl, setScriptUrl] = useState(settings.scriptUrl || '')
   const [wakeEnabled, setWakeEnabled] = useState(settings.wakeEnabled || false)
+  const [userName, setUserName] = useState(settings.userName || '')
+  const [voiceURI, setVoiceURI] = useState(settings.voiceURI || '')
+  const [sttLang, setSttLang] = useState(settings.sttLang || 'en-IN')
+  const [tamilVoices, setTamilVoices] = useState([])
+
+  useEffect(() => {
+    if (!open) return
+    const loadVoices = () => {
+      const all = window.speechSynthesis?.getVoices() || []
+      setTamilVoices(all.filter((v) => v.lang?.toLowerCase().startsWith('ta')))
+    }
+    loadVoices()
+    window.speechSynthesis.onvoiceschanged = loadVoices
+  }, [open])
 
   if (!open) return null
 
@@ -11,6 +25,16 @@ export default function SettingsModal({ open, onClose, settings, onSave }) {
     <div style={styles.overlay} onClick={onClose}>
       <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className="hud-label" style={{ marginBottom: 18 }}>SETTINGS</div>
+
+        <label style={styles.label}>Your Name</label>
+        <input
+          style={styles.input}
+          type="text"
+          placeholder="e.g. Naveen"
+          value={userName}
+          onChange={(e) => setUserName(e.target.value)}
+        />
+        <p style={styles.hint}>ARIA will address you by this name — like Jarvis calling Tony "Sir."</p>
 
         <label style={styles.label}>Gemini API Key</label>
         <input
@@ -37,25 +61,56 @@ export default function SettingsModal({ open, onClose, settings, onSave }) {
         />
         <p style={styles.hint}>See backend/APPS_SCRIPT_SETUP.md for the 5-minute setup.</p>
 
+        <label style={styles.label}>Speech Input Language</label>
+        <select style={styles.input} value={sttLang} onChange={(e) => setSttLang(e.target.value)}>
+          <option value="en-IN">English</option>
+          <option value="ta-IN">Tamil</option>
+        </select>
+        <p style={styles.hint}>
+          The mic can only listen in one language at a time — switch this depending on what you're about
+          to say. ARIA will reply in that same language.
+        </p>
+
+        <label style={styles.label}>Tamil Voice</label>
+        <select style={styles.input} value={voiceURI} onChange={(e) => setVoiceURI(e.target.value)}>
+          <option value="">Auto-select</option>
+          {tamilVoices.map((v) => (
+            <option key={v.voiceURI} value={v.voiceURI}>
+              {v.name} {v.localService ? '· on-device' : '· online'}
+            </option>
+          ))}
+        </select>
+        {tamilVoices.length === 0 ? (
+          <p style={{ ...styles.hint, color: 'var(--amber)' }}>
+            No Tamil voice found on this device. Go to Settings → System → Languages →
+            Text-to-speech output → Install voice data → download Tamil, then reopen this page.
+          </p>
+        ) : (
+          <p style={styles.hint}>
+            For clearer pronunciation, prefer "Google" voices where available — they're clearer than
+            Samsung/System default voices.
+          </p>
+        )}
+
         <label style={{ ...styles.label, display: 'flex', alignItems: 'center', gap: 10, marginTop: 18 }}>
           <input type="checkbox" checked={wakeEnabled} onChange={(e) => setWakeEnabled(e.target.checked)} />
           Wake word listening (foreground only)
         </label>
         <p style={styles.hint}>
-          Listens continuously for "ஆரியா" / "Jarvis" while the app is open and the screen is on. True background
+          Listens continuously for "Aria" / "Jarvis" while the app is open and the screen is on. True background
           wake-word needs the Capacitor + Porcupine native build — see README.
         </p>
 
         <div style={styles.actions}>
-          <button style={styles.cancelBtn} onClick={onClose}>ரத்து</button>
+          <button style={styles.cancelBtn} onClick={onClose}>Cancel</button>
           <button
             style={styles.saveBtn}
             onClick={() => {
-              onSave({ apiKey, scriptUrl, wakeEnabled })
+              onSave({ apiKey, scriptUrl, wakeEnabled, userName, voiceURI, sttLang })
               onClose()
             }}
           >
-            சேமி
+            Save
           </button>
         </div>
       </div>

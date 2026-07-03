@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
 
-export function useVoice({ onFinalTranscript, wakeWord = 'ஆரியா', wakeEnabled = false }) {
+export function useVoice({ onFinalTranscript, wakeWord = 'aria', wakeEnabled = false, sttLang = 'en-IN' }) {
   const [state, setState] = useState('idle') // idle | listening | thinking | speaking
   const [amplitude, setAmplitude] = useState(0)
   const [liveText, setLiveText] = useState('')
@@ -86,7 +86,7 @@ export function useVoice({ onFinalTranscript, wakeWord = 'ஆரியா', wake
     if (!supported) return
     modeRef.current = 'command'
     const rec = new SpeechRecognition()
-    rec.lang = 'ta-IN'
+    rec.lang = sttLang
     rec.continuous = false
     rec.interimResults = true
     recognitionRef.current = rec
@@ -117,7 +117,7 @@ export function useVoice({ onFinalTranscript, wakeWord = 'ஆரியா', wake
       }
     }
     rec.start()
-  }, [supported, onFinalTranscript, startMeter, stopMeter])
+  }, [supported, onFinalTranscript, startMeter, stopMeter, sttLang])
 
   // ---- lightweight foreground "wake word" listener ----
   // NOTE: this only works while the tab/app is open and the screen is on.
@@ -126,7 +126,7 @@ export function useVoice({ onFinalTranscript, wakeWord = 'ஆரியா', wake
     if (!wakeEnabled || !supported) return
     modeRef.current = 'wake'
     const rec = new SpeechRecognition()
-    rec.lang = 'ta-IN'
+    rec.lang = sttLang
     rec.continuous = true
     rec.interimResults = true
     recognitionRef.current = rec
@@ -152,7 +152,7 @@ export function useVoice({ onFinalTranscript, wakeWord = 'ஆரியா', wake
       rec.onend = null
       rec.stop()
     }
-  }, [wakeEnabled, supported, wakeWord, listenOnce])
+  }, [wakeEnabled, supported, wakeWord, listenOnce, sttLang])
 
   useEffect(() => () => stopMeter(), [stopMeter])
 

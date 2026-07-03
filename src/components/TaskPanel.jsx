@@ -6,13 +6,13 @@ export default function TaskPanel({ open, onClose, tasks, loading, onComplete, o
         onClick={(e) => e.stopPropagation()}
       >
         <div style={styles.header}>
-          <span className="hud-label">பணிகள் · SCHEDULE</span>
+          <span className="hud-label">TASKS · SCHEDULE</span>
           <button onClick={onRefresh} style={styles.refreshBtn}>↻</button>
         </div>
 
-        {loading && <div style={styles.empty}>ஏற்றுகிறது...</div>}
+        {loading && <div style={styles.empty}>Loading...</div>}
         {!loading && tasks.length === 0 && (
-          <div style={styles.empty}>எந்த பணியும் இல்லை. "நாளைக்கு 6 மணிக்கு படிக்க நினைவூட்டு" என்று சொல்லி பாருங்கள்.</div>
+          <div style={styles.empty}>No tasks yet. Try saying "Remind me to study at 6 tomorrow."</div>
         )}
 
         <div style={styles.list}>
@@ -29,7 +29,7 @@ export default function TaskPanel({ open, onClose, tasks, loading, onComplete, o
                   {t.title}
                 </div>
                 <div style={styles.meta}>
-                  {[t.date, t.time].filter(Boolean).join(' · ') || 'நேரம் குறிப்பிடப்படவில்லை'}
+                  {[t.date, t.time].filter(Boolean).join(' · ') || 'No time specified'}
                 </div>
               </div>
             </div>
