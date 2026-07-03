@@ -29,6 +29,12 @@ Set "mood" to whatever best matches the emotional tone of your reply — this dr
 
 const MAX_HISTORY_TURNS = 16 // ~16 back-and-forths kept; older ones drop off to keep prompt size/cost sane
 
+// Transient server-side errors (overloaded / temporarily unavailable) — worth a quick
+// automatic retry with backoff, unlike 429s which need the server's suggested wait time.
+const TRANSIENT_STATUS = new Set([500, 503])
+const TRANSIENT_MAX_ATTEMPTS = 3 // 1 initial try + 2 retries
+const TRANSIENT_BACKOFF_MS = [1000, 2000, 4000]
+
 function buildRequestBody({ userText, history, taskContext, userName }) {
   const nameLine = userName
     ? `\n\nThe user's name is "${userName}". Address them by this name naturally in replies sometimes (not every time) — like Jarvis calling Tony Stark "Sir."`
@@ -76,17 +82,19 @@ function sleep(ms) {
 }
 
 /**
- * Non-streaming call with automatic single retry on 429 (rate limit),
- * waiting however long the server tells us to (capped so we don't hang forever).
+ * Non-streaming call with automatic retries:
+ *  - 429 (rate limit): one retry, waiting however long the server tells us to (capped).
+ *  - 500/503 (transient overload): up to 2 retries with exponential backoff.
  */
-export async function askAria({ apiKey, userText, history = [], taskContext = [], userName = '', onRateLimited }) {
+export async function askAria({ apiKey, userText, history = [], taskContext = [], userName = '', onRateLimited, onRetrying }) {
   if (!apiKey) throw new Error('missing_api_key')
 
   const body = buildRequestBody({ userText, history, taskContext, userName })
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`
 
-  let attempt = 0
-  // one real attempt + one retry after a 429 backoff
+  let rateLimitAttempt = 0
+  let transientAttempt = 0
+
   while (true) {
     const res = await fetch(url, {
       method: 'POST',
@@ -94,12 +102,20 @@ export async function askAria({ apiKey, userText, history = [], taskContext = []
       body: JSON.stringify(body)
     })
 
-    if (res.status === 429 && attempt < 1) {
+    if (res.status === 429 && rateLimitAttempt < 1) {
       const errText = await res.text()
       const waitSec = Math.min(parseRetryDelaySeconds(errText), 60)
       onRateLimited?.(waitSec)
       await sleep(waitSec * 1000)
-      attempt += 1
+      rateLimitAttempt += 1
+      continue
+    }
+
+    if (TRANSIENT_STATUS.has(res.status) && transientAttempt < TRANSIENT_MAX_ATTEMPTS - 1) {
+      const waitMs = TRANSIENT_BACKOFF_MS[transientAttempt] ?? 4000
+      onRetrying?.(waitMs / 1000, transientAttempt + 1, TRANSIENT_MAX_ATTEMPTS)
+      await sleep(waitMs)
+      transientAttempt += 1
       continue
     }
 
@@ -136,36 +152,51 @@ function extractPartialReply(fragment) {
  * Streaming call. Calls onPartialReply(text) as soon as the "reply" field is fully
  * available (even if action/task/mood are still streaming in), then returns the full
  * parsed result once the whole JSON object has arrived. Falls back to askAria
- * automatically on any network/parse failure.
+ * automatically on any network/parse failure, rate limit, or transient server error
+ * (after its own short backoff retries here first).
  */
-export async function askAriaStream({ apiKey, userText, history = [], taskContext = [], userName = '', onPartialReply, onRateLimited }) {
+export async function askAriaStream({ apiKey, userText, history = [], taskContext = [], userName = '', onPartialReply, onRateLimited, onRetrying }) {
   if (!apiKey) throw new Error('missing_api_key')
 
   const body = buildRequestBody({ userText, history, taskContext, userName })
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?alt=sse&key=${apiKey}`
 
   let res
-  try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    })
-  } catch {
-    // network-level failure — fall back to the non-streaming path entirely
-    return askAria({ apiKey, userText, history, taskContext, userName, onRateLimited })
-  }
+  let transientAttempt = 0
 
-  if (res.status === 429) {
-    const errText = await res.text()
-    const waitSec = Math.min(parseRetryDelaySeconds(errText), 60)
-    onRateLimited?.(waitSec)
-    await sleep(waitSec * 1000)
-    return askAria({ apiKey, userText, history, taskContext, userName, onRateLimited })
+  while (true) {
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+    } catch {
+      // network-level failure — fall back to the non-streaming path entirely
+      return askAria({ apiKey, userText, history, taskContext, userName, onRateLimited, onRetrying })
+    }
+
+    if (res.status === 429) {
+      const errText = await res.text()
+      const waitSec = Math.min(parseRetryDelaySeconds(errText), 60)
+      onRateLimited?.(waitSec)
+      await sleep(waitSec * 1000)
+      return askAria({ apiKey, userText, history, taskContext, userName, onRateLimited, onRetrying })
+    }
+
+    if (TRANSIENT_STATUS.has(res.status) && transientAttempt < TRANSIENT_MAX_ATTEMPTS - 1) {
+      const waitMs = TRANSIENT_BACKOFF_MS[transientAttempt] ?? 4000
+      onRetrying?.(waitMs / 1000, transientAttempt + 1, TRANSIENT_MAX_ATTEMPTS)
+      await sleep(waitMs)
+      transientAttempt += 1
+      continue
+    }
+
+    break
   }
 
   if (!res.ok || !res.body) {
-    return askAria({ apiKey, userText, history, taskContext, userName, onRateLimited })
+    return askAria({ apiKey, userText, history, taskContext, userName, onRateLimited, onRetrying })
   }
 
   const reader = res.body.getReader()
@@ -216,6 +247,6 @@ export async function askAriaStream({ apiKey, userText, history = [], taskContex
     return result
   } catch {
     // couldn't parse streamed JSON (got cut off, malformed, etc.) — fall back to a clean non-streaming call
-    return askAria({ apiKey, userText, history, taskContext, userName, onRateLimited })
+    return askAria({ apiKey, userText, history, taskContext, userName, onRateLimited, onRetrying })
   }
 }

@@ -117,6 +117,9 @@ export default function App() {
           onRateLimited: (waitSec) => {
             setError(`ARIA is briefly rate-limited — retrying in ${Math.ceil(waitSec)}s...`)
           },
+          onRetrying: (waitSec, attempt, maxAttempts) => {
+            setError(`ARIA's model is overloaded — retrying (${attempt}/${maxAttempts - 1})...`)
+          },
           onPartialReply: async (partialText) => {
             // start speaking as soon as we have the reply text, well before action/task/mood finish streaming
             spokenEarly = true
