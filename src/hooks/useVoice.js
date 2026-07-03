@@ -50,15 +50,24 @@ export function useVoice({ onFinalTranscript, wakeWord = 'ஆரியா', wake
   }, [])
 
   // ---- speech synthesis (Tamil TTS) ----
-  const speak = useCallback((text) => {
+  const speak = useCallback((text, preferredVoiceURI) => {
     return new Promise((resolve) => {
       window.speechSynthesis.cancel()
       const utter = new SpeechSynthesisUtterance(text)
       utter.lang = 'ta-IN'
       const voices = window.speechSynthesis.getVoices()
-      const tamilVoice = voices.find((v) => v.lang === 'ta-IN') || voices.find((v) => v.lang?.startsWith('ta'))
-      if (tamilVoice) utter.voice = tamilVoice
-      utter.rate = 1
+      const taVoices = voices.filter((v) => v.lang === 'ta-IN' || v.lang?.startsWith('ta'))
+      // network ("online") voices are almost always higher-quality/more natural than
+      // the on-device "compact" ones, so prefer those when the user hasn't picked one
+      const chosen =
+        (preferredVoiceURI && voices.find((v) => v.voiceURI === preferredVoiceURI)) ||
+        taVoices.find((v) => v.localService === false) ||
+        taVoices[0]
+      if (chosen) utter.voice = chosen
+      // slightly slower than default + full pitch reads clearer for a non-native listener
+      utter.rate = 0.92
+      utter.pitch = 1
+      utter.volume = 1
       utter.onstart = () => setState('speaking')
       utter.onend = () => {
         setState('idle')
