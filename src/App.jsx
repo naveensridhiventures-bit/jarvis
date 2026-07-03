@@ -84,6 +84,7 @@ export default function App() {
   const { state, amplitude, liveText, listenOnce, speak, supported } = useVoice({
     onFinalTranscript: handleFinalTranscript,
     wakeEnabled: settings.wakeEnabled,
+    wakeWord: settings.wakeWord || 'dexter',
     sttLang: settings.sttLang || 'en-IN',
   })
 

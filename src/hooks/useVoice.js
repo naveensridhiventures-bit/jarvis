@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
 
-export function useVoice({ onFinalTranscript, wakeWord = 'aria', wakeEnabled = false, sttLang = 'en-IN' }) {
+export function useVoice({ onFinalTranscript, wakeWord = 'dexter', wakeEnabled = false, sttLang = 'en-IN' }) {
   const [state, setState] = useState('idle') // idle | listening | thinking | speaking
   const [amplitude, setAmplitude] = useState(0)
   const [liveText, setLiveText] = useState('')
@@ -135,7 +135,8 @@ export function useVoice({ onFinalTranscript, wakeWord = 'aria', wakeEnabled = f
       const text = Array.from(event.results)
         .map((r) => r[0].transcript)
         .join(' ')
-      if (text.includes(wakeWord) || text.toLowerCase().includes('jarvis') || text.toLowerCase().includes('aria')) {
+      const lowerText = text.toLowerCase()
+      if (lowerText.includes(wakeWord.toLowerCase())) {
         rec.stop()
         listenOnce()
       }

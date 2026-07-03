@@ -4,6 +4,7 @@ export default function SettingsModal({ open, onClose, settings, onSave }) {
   const [apiKey, setApiKey] = useState(settings.apiKey || '')
   const [scriptUrl, setScriptUrl] = useState(settings.scriptUrl || '')
   const [wakeEnabled, setWakeEnabled] = useState(settings.wakeEnabled || false)
+  const [wakeWord, setWakeWord] = useState(settings.wakeWord || 'dexter')
   const [userName, setUserName] = useState(settings.userName || '')
   const [voiceURI, setVoiceURI] = useState(settings.voiceURI || '')
   const [sttLang, setSttLang] = useState(settings.sttLang || 'en-IN')
@@ -96,9 +97,23 @@ export default function SettingsModal({ open, onClose, settings, onSave }) {
           <input type="checkbox" checked={wakeEnabled} onChange={(e) => setWakeEnabled(e.target.checked)} />
           Wake word listening (foreground only)
         </label>
+
+        {wakeEnabled && (
+          <>
+            <label style={styles.label}>Wake Word</label>
+            <input
+              style={styles.input}
+              type="text"
+              placeholder="e.g. dexter"
+              value={wakeWord}
+              onChange={(e) => setWakeWord(e.target.value)}
+            />
+            <p style={styles.hint}>Say this word to wake ARIA up and start listening — no need to tap the mic first.</p>
+          </>
+        )}
         <p style={styles.hint}>
-          Listens continuously for "Aria" / "Jarvis" while the app is open and the screen is on. True background
-          wake-word needs the Capacitor + Porcupine native build — see README.
+          Listens continuously for "{wakeWord || 'dexter'}" while the app is open and the screen is on. True
+          background wake-word needs the Capacitor + Porcupine native build — see README.
         </p>
 
         <div style={styles.actions}>
@@ -106,7 +121,7 @@ export default function SettingsModal({ open, onClose, settings, onSave }) {
           <button
             style={styles.saveBtn}
             onClick={() => {
-              onSave({ apiKey, scriptUrl, wakeEnabled, userName, voiceURI, sttLang })
+              onSave({ apiKey, scriptUrl, wakeEnabled, wakeWord, userName, voiceURI, sttLang })
               onClose()
             }}
           >
