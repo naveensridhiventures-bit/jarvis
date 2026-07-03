@@ -1,0 +1,77 @@
+:root {
+  /* ---- color tokens ---- */
+  --bg-void: #070b12;
+  --bg-panel: #0d1420;
+  --bg-panel-raised: #121b2b;
+  --line: rgba(79, 227, 255, 0.14);
+  --line-strong: rgba(79, 227, 255, 0.32);
+  --cyan: #4fe3ff;
+  --cyan-dim: #1c5a68;
+  --amber: #ffb454;
+  --amber-dim: #6a4a1e;
+  --text-primary: #eaf6fa;
+  --text-dim: #5c7a8a;
+  --text-faint: #33475a;
+  --danger: #ff5c6c;
+
+  /* ---- type ---- */
+  --font-display: 'Orbitron', sans-serif;
+  --font-body: 'Rajdhani', sans-serif;
+  --font-tamil: 'Noto Sans Tamil', sans-serif;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background: radial-gradient(ellipse 120% 80% at 50% -10%, #0f1c2e 0%, var(--bg-void) 55%);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  overscroll-behavior: none;
+  user-select: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+::selection {
+  background: var(--cyan-dim);
+}
+
+/* thin scrollbars where we do allow scroll */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 2px; }
+
+.tamil {
+  font-family: var(--font-tamil);
+}
+
+.hud-label {
+  font-family: var(--font-display);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.reduce-motion {
+  animation: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
