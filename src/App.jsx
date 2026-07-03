@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import JarvisOrb from './components/JarvisOrb.jsx'
 import StatusBar from './components/StatusBar.jsx'
 import TaskPanel from './components/TaskPanel.jsx'
@@ -30,6 +30,8 @@ export default function App() {
   const [tasksLoading, setTasksLoading] = useState(false)
   const [reply, setReply] = useState('')
   const [error, setError] = useState(null)
+  const historyRef = useRef([]) // running conversation memory: [{ role: 'user'|'model', text }]
+  const listenOnceRef = useRef(() => {})
 
   const refreshTasks = useCallback(async () => {
     if (!settings.scriptUrl) return
@@ -56,9 +58,17 @@ export default function App() {
         const result = await askAria({
           apiKey: settings.apiKey,
           userText: text,
+          history: historyRef.current,
           taskContext: tasks.filter((t) => t.status !== 'done').slice(0, 10),
           userName: settings.userName,
         })
+
+        // remember this exchange so the next turn has context
+        historyRef.current = [
+          ...historyRef.current,
+          { role: 'user', text },
+          { role: 'model', text: JSON.stringify(result) },
+        ]
 
         if (result.action === 'add_task' && result.task?.title && settings.scriptUrl) {
           await addTask(settings.scriptUrl, result.task)
@@ -72,6 +82,11 @@ export default function App() {
 
         setReply(result.reply)
         await speak(result.reply, settings.voiceURI)
+
+        // continuous conversation: keep listening for a natural follow-up without needing another tap/wake word
+        if (settings.continuousConvo) {
+          listenOnceRef.current()
+        }
       } catch (e) {
         console.error(e)
         setError('Sorry, something went wrong.')
@@ -87,6 +102,10 @@ export default function App() {
     wakeWord: settings.wakeWord || 'dexter',
     sttLang: settings.sttLang || 'en-IN',
   })
+
+  useEffect(() => {
+    listenOnceRef.current = listenOnce
+  }, [listenOnce])
 
   useEffect(() => {
     refreshTasks()
@@ -107,12 +126,19 @@ export default function App() {
     localStorage.setItem('aria_settings', JSON.stringify(next))
   }
 
+  const startNewConversation = () => {
+    historyRef.current = []
+    setError(null)
+    setReply(settings.userName ? `Fresh start, ${settings.userName}. What's up?` : "Fresh start. What's up?")
+  }
+
   return (
     <div style={styles.app}>
       <StatusBar
         online={!!settings.apiKey}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenTasks={() => setTasksOpen(true)}
+        onNewConversation={startNewConversation}
       />
 
       <div style={styles.main}>
@@ -138,6 +164,9 @@ export default function App() {
           style={{ ...styles.micBtn, ...(state === 'listening' ? styles.micBtnActive : {}) }}
           onClick={() => {
             setError(null)
+            if (state === 'speaking') {
+              window.speechSynthesis?.cancel() // barge-in: stop ARIA talking and listen right away
+            }
             listenOnce()
           }}
           disabled={!supported || state === 'thinking'}

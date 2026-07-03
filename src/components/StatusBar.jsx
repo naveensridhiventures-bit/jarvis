@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-export default function StatusBar({ online, onOpenSettings, onOpenTasks }) {
+export default function StatusBar({ online, onOpenSettings, onOpenTasks, onNewConversation }) {
   const [now, setNow] = useState(new Date())
 
   useEffect(() => {
@@ -27,6 +27,7 @@ export default function StatusBar({ online, onOpenSettings, onOpenTasks }) {
       </div>
 
       <div style={styles.right}>
+        <button aria-label="New conversation" onClick={onNewConversation} style={styles.iconBtn}>+</button>
         <button aria-label="Tasks" onClick={onOpenTasks} style={styles.iconBtn}>☰</button>
         <button aria-label="Settings" onClick={onOpenSettings} style={styles.iconBtn}>⚙</button>
       </div>
@@ -46,13 +47,13 @@ const styles = {
   center: { textAlign: 'center' },
   time: { fontFamily: 'var(--font-display)', fontSize: 20, letterSpacing: '0.08em', color: 'var(--text-primary)' },
   date: { fontSize: 12, color: 'var(--text-dim)', marginTop: 2 },
-  right: { display: 'flex', gap: 10, minWidth: 90, justifyContent: 'flex-end' },
+  right: { display: 'flex', gap: 8, minWidth: 90, justifyContent: 'flex-end' },
   iconBtn: {
     background: 'var(--bg-panel)',
     border: '1px solid var(--line)',
     color: 'var(--cyan)',
-    width: 34,
-    height: 34,
+    width: 32,
+    height: 32,
     borderRadius: 10,
     fontSize: 15,
   }

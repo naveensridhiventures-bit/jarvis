@@ -8,6 +8,7 @@ export default function SettingsModal({ open, onClose, settings, onSave }) {
   const [userName, setUserName] = useState(settings.userName || '')
   const [voiceURI, setVoiceURI] = useState(settings.voiceURI || '')
   const [sttLang, setSttLang] = useState(settings.sttLang || 'en-IN')
+  const [continuousConvo, setContinuousConvo] = useState(settings.continuousConvo || false)
   const [tamilVoices, setTamilVoices] = useState([])
 
   useEffect(() => {
@@ -116,12 +117,21 @@ export default function SettingsModal({ open, onClose, settings, onSave }) {
           background wake-word needs the Capacitor + Porcupine native build — see README.
         </p>
 
+        <label style={{ ...styles.label, display: 'flex', alignItems: 'center', gap: 10, marginTop: 18 }}>
+          <input type="checkbox" checked={continuousConvo} onChange={(e) => setContinuousConvo(e.target.checked)} />
+          Continuous conversation mode
+        </label>
+        <p style={styles.hint}>
+          After ARIA replies, it automatically starts listening again for your next line — no need to tap or say
+          the wake word between turns. Tap the mic to interrupt/stop anytime.
+        </p>
+
         <div style={styles.actions}>
           <button style={styles.cancelBtn} onClick={onClose}>Cancel</button>
           <button
             style={styles.saveBtn}
             onClick={() => {
-              onSave({ apiKey, scriptUrl, wakeEnabled, wakeWord, userName, voiceURI, sttLang })
+              onSave({ apiKey, scriptUrl, wakeEnabled, wakeWord, userName, voiceURI, sttLang, continuousConvo })
               onClose()
             }}
           >

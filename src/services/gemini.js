@@ -23,7 +23,9 @@ Use action "list_tasks" when the user asks about their tasks.
 For normal conversation, teaching, or answering doubts, set action to "none" and put the full answer in "reply".
 Omit or leave the "task" field empty when it isn't needed.`
 
-export async function askAria({ apiKey, userText, taskContext = [], userName = '' }) {
+const MAX_HISTORY_TURNS = 16 // ~16 back-and-forths kept; older ones drop off to keep prompt size/cost sane
+
+export async function askAria({ apiKey, userText, history = [], taskContext = [], userName = '' }) {
   if (!apiKey) throw new Error('missing_api_key')
 
   const nameLine = userName
@@ -33,6 +35,14 @@ export async function askAria({ apiKey, userText, taskContext = [], userName = '
     ? `\n\nCurrent tasks: ${JSON.stringify(taskContext)}`
     : ''
 
+  // keep only the most recent turns so the request doesn't grow forever
+  const trimmedHistory = history.slice(-MAX_HISTORY_TURNS * 2)
+
+  const contents = [
+    ...trimmedHistory.map((turn) => ({ role: turn.role, parts: [{ text: turn.text }] })),
+    { role: 'user', parts: [{ text: userText }] }
+  ]
+
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`,
     {
@@ -40,7 +50,7 @@ export async function askAria({ apiKey, userText, taskContext = [], userName = '
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION + nameLine + contextLine }] },
-        contents: [{ role: 'user', parts: [{ text: userText }] }],
+        contents,
         generationConfig: {
           temperature: 0.7,
           responseMimeType: 'application/json'
